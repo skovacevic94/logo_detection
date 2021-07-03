@@ -1,6 +1,4 @@
 import os
-from pathlib import Path
-from typing import List
 import cv2
 import numpy as np
 from dataclasses import dataclass
@@ -22,6 +20,7 @@ index_to_brand = {}
 for k, v in brand_to_index.items():
     index_to_brand[v] = k
 
+
 @dataclass
 class LogoBBox:
     logo_id: int
@@ -30,12 +29,34 @@ class LogoBBox:
     w: int
     h: int
 
+
 def _load_bbox(path):
     bboxes = []
     with open(path, "r") as bbox_file:
          x, y, w, h = [int(num) for num in next(bbox_file).split()]
          bboxes.append([x, y, w, h])
     return bboxes
+
+
+def compute_metrics(true_logos, detected_logos):
+    assert(len(true_logos)==len(detected_logos))
+
+    confussion_matrix = np.zeros((11, 11))
+    for i in range(len(true_logos)):
+        logo_index = true_logos[i][0].logo_id
+        to_detect = len(true_logos[i]) # Number of logos that algorithms should detect on the image
+        for detected_logo_bbox in detected_logos[i]:
+            confussion_matrix[detected_logo_bbox.logo_id][logo_index] += 1
+            to_detect -= 1
+        confussion_matrix[10][logo_index] += to_detect
+    
+    precission = np.zeros(10)
+    recall = np.zeros(10)
+    for i in range(10):
+        precission[i] = confussion_matrix[i][i] / np.sum(confussion_matrix[i, :])
+        recall[i] = confussion_matrix[i][i] / np.sum(confussion_matrix[:, i])
+    accuracy = np.trace(confussion_matrix)/np.sum(confussion_matrix)
+    return confussion_matrix, precission, recall, accuracy
 
 
 def load(dataset_root_path, dataset_filename):
@@ -78,4 +99,37 @@ def load_testset(dataset_root_path):
     return load(dataset_root_path, "30_images_per_class_test.txt")
 
 if __name__=="__main__":
-    load_trainset('./data')
+    import matplotlib.pyplot as plt
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler
+
+    images, logos = load_trainset('./data')
+
+    classes = []
+    areas = []
+    aspectRatios = []
+    for logo_bboxes in logos:
+        for logo_bbox in logo_bboxes:
+            id = logo_bbox.logo_id
+            w = logo_bbox.w
+            h = logo_bbox.h
+            areas.append(w*h)
+            aspectRatios.append(h/w)
+            classes.append(id)
+    X = np.zeros((len(areas), 2))
+    X[:, 0] = np.array(areas)
+    X[:, 1] = np.array(aspectRatios)
+
+    scaler = StandardScaler()
+
+    X_transformed = scaler.fit_transform(X)
+    
+    clf = KMeans(n_clusters=6).fit(X_transformed)
+    scaled_centroids = clf.cluster_centers_
+    unscaled_centroids = scaler.inverse_transform(scaled_centroids)
+    
+    plt.scatter(X[:, 0], X[:, 1])
+    plt.scatter(unscaled_centroids[:, 0], unscaled_centroids[:, 1], s=80)
+    plt.legend()
+    plt.show()
+    print(unscaled_centroids)

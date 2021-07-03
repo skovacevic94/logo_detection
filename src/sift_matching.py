@@ -1,27 +1,7 @@
-from utils import load_trainset, load_testset, LogoBBox
+from utils import load_trainset, load_testset, LogoBBox, compute_metrics
 from tqdm import tqdm
 import cv2
 import numpy as np
-
-def compute_metrics(true_logos, detected_logos):
-    assert(len(true_logos)==len(detected_logos))
-
-    confussion_matrix = np.zeros((11, 11))
-    for i in range(len(true_logos)):
-        logo_index = true_logos[i][0].logo_id
-        to_detect = 1 #len(true_logos[i]) # Number of logos that algorithms should detect on the image
-        for detected_logo_bbox in detected_logos[i]:
-            confussion_matrix[detected_logo_bbox.logo_id][logo_index] += 1
-            to_detect -= 1
-        confussion_matrix[10][logo_index] += to_detect
-    
-    precission = np.zeros(10)
-    recall = np.zeros(10)
-    for i in range(10):
-        precission[i] = confussion_matrix[i][i] / np.sum(confussion_matrix[i, :])
-        recall[i] = confussion_matrix[i][i] / np.sum(confussion_matrix[:, i])
-    accuracy = np.trace(confussion_matrix)/np.sum(confussion_matrix)
-    return confussion_matrix, precission, recall, accuracy
 
 def test_and_evaluate(sift, flann, intraclass_detectors, logo_ids):
     images, logos = load_testset("./data")
