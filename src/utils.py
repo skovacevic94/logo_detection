@@ -1,6 +1,10 @@
 import os
 import cv2
 import numpy as np
+import pandas as pd
+import seaborn as sn
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 from dataclasses import dataclass
 
 brand_to_index = {
@@ -13,7 +17,8 @@ brand_to_index = {
     "nike": 6,
     "prada": 7,
     "puma": 8,
-    "supreme": 9
+    "supreme": 9,
+    "None": 10
 }
 
 index_to_brand = {}
@@ -22,20 +27,60 @@ for k, v in brand_to_index.items():
 
 
 @dataclass
-class LogoBBox:
-    logo_id: int
+class BoundingBox:
+    logo_idx: int
     x: int
     y: int
     w: int
     h: int
 
 
-def _load_bbox(path):
-    bboxes = []
-    with open(path, "r") as bbox_file:
+def plot_confusion_matrix(y_true, y_pred, title):
+    cmatrix = confusion_matrix(y_true, y_pred)
+    df_cm = pd.DataFrame(cmatrix, range(10), range(10))
+    sn.set(font_scale=1.4)
+    sn.heatmap(df_cm, annot=True, annot_kws={"size": 16})
+    plt.title(title)
+    plt.show()
+
+
+def load_logos(bbox_dir_path, dir_name, file_name):
+    image_logos = []
+    with open(os.path.join(bbox_dir_path, dir_name, file_name + ".bboxes.txt"), "r") as bbox_file:
          x, y, w, h = [int(num) for num in next(bbox_file).split()]
-         bboxes.append([x, y, w, h])
-    return bboxes
+         image_logos.append(BoundingBox(brand_to_index[dir_name], x, y, w, h))
+    return image_logos
+
+
+def load(dataset_root_path, dataset_filename):
+    bbox_dir_path = os.path.join(dataset_root_path, "masks")
+    image_root_dir_path = os.path.join(dataset_root_path, "jpg")
+
+    video_set = set()
+    with open(os.path.join(dataset_root_path, "ImageSets", dataset_filename), 'r') as set_file:
+        for line in set_file:
+            video_set.add(line.strip())
+
+    images = []
+    logos = []
+    for dir_name in os.listdir(image_root_dir_path):
+        dir_path = os.path.join(image_root_dir_path, dir_name)
+        for file_name in os.listdir(dir_path):
+            file_path = os.path.join(dir_path, file_name)
+            if os.path.splitext(file_name)[0] in video_set:
+                img = cv2.imread(file_path)
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                images.append(img)
+
+                image_logos = load_logos(bbox_dir_path, dir_name, file_name)
+                logos.append(image_logos)
+    return images, logos
+
+def load_trainset(dataset_root_path):
+    return load(dataset_root_path, "40_images_per_class_train.txt")
+
+def load_testset(dataset_root_path):
+    return load(dataset_root_path, "30_images_per_class_test.txt")
 
 
 def compute_metrics(true_logos, detected_logos):
@@ -58,45 +103,6 @@ def compute_metrics(true_logos, detected_logos):
     accuracy = np.trace(confussion_matrix)/np.sum(confussion_matrix)
     return confussion_matrix, precission, recall, accuracy
 
-
-def load(dataset_root_path, dataset_filename):
-    bbox_dir_path = os.path.join(dataset_root_path, "masks")
-    image_root_dir_path = os.path.join(dataset_root_path, "jpg")
-
-    video_set = set()
-    with open(os.path.join(dataset_root_path, "ImageSets", dataset_filename), 'r') as set_file:
-        for line in set_file:
-            video_set.add(line.strip())
-
-    images = []
-    logos = []
-    for dir_name in os.listdir(image_root_dir_path):
-        dir_path = os.path.join(image_root_dir_path, dir_name)
-        for file_name in os.listdir(dir_path):
-            file_path = os.path.join(dir_path, file_name)
-            if os.path.splitext(file_name)[0] in video_set:
-                img = cv2.imread(file_path)
-                images.append(img)
-
-                
-                bboxes = _load_bbox(os.path.join(bbox_dir_path, dir_name, file_name + ".bboxes.txt"))
-                image_logos = []
-                for bbox in bboxes:
-                    logo_bbox = LogoBBox(
-                        logo_id = brand_to_index[dir_name],
-                        x=bbox[0],
-                        y=bbox[1],
-                        w=bbox[2],
-                        h=bbox[3])
-                    image_logos.append(logo_bbox)
-                logos.append(image_logos)
-    return images, logos
-
-def load_trainset(dataset_root_path):
-    return load(dataset_root_path, "40_images_per_class_train.txt")
-
-def load_testset(dataset_root_path):
-    return load(dataset_root_path, "30_images_per_class_test.txt")
 
 if __name__=="__main__":
     import matplotlib.pyplot as plt
