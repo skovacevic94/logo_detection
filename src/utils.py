@@ -47,8 +47,10 @@ def plot_confusion_matrix(y_true, y_pred, title):
 def load_logos(bbox_dir_path, dir_name, file_name):
     image_logos = []
     with open(os.path.join(bbox_dir_path, dir_name, file_name + ".bboxes.txt"), "r") as bbox_file:
-         x, y, w, h = [int(num) for num in next(bbox_file).split()]
-         image_logos.append(BoundingBox(brand_to_index[dir_name], x, y, w, h))
+        lines = bbox_file.readlines()
+        for line in lines:
+            x, y, w, h = [int(num) for num in line.split()]
+            image_logos.append(BoundingBox(brand_to_index[dir_name], x, y, w, h))
     return image_logos
 
 
