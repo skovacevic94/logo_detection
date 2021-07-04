@@ -1,11 +1,10 @@
-from utils import load_trainset, load_testset, plot_confusion_matrix, index_to_brand
+from utils import load_data, report_metrics
 from tqdm import tqdm
 import cv2
 import numpy as np
 from scipy.cluster.vq import kmeans, vq
 from sklearn.svm import LinearSVC
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import precision_recall_fscore_support
 
 def create_vocabulary(sift, images, k=130, logos=None):
     all_descriptors_list = []
@@ -42,45 +41,22 @@ def compute_features(sift, voc, images, logos):
 
 if __name__=='__main__':
     sift = cv2.SIFT_create()
-
-    train_images, train_logos = load_trainset('./data')
+    clf = LinearSVC(C=0.01)
+    
+    train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
     
     k = 3000
     voc = create_vocabulary(sift, train_images, k, train_logos)
+
+    print("Training stage...")
     X_train, y_train = compute_features(sift, voc, train_images, train_logos)
-    
-    clf = LinearSVC(C=0.01)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_train)
-
-    plot_confusion_matrix(y_train, y_pred, "Train")
-    precision, recall, _, _ = precision_recall_fscore_support(y_train, y_pred)
-    print("Per-class precision")
-    print(precision)
-    print("Per-class recall")
-    print(recall)
-    print("Mean precision")
-    print(np.mean(precision))
-    print("Mean recal")
-    print(np.mean(recall))
+    report_metrics(y_train, y_pred, "Train")
 
     print("Evaluation stage...")
-    test_images, test_logos = load_testset("./data")
-
     X_test, y_test = compute_features(sift, voc, test_images, test_logos)
-
     y_pred = clf.predict(X_test)
-
-    precision, recall, _, _ = precision_recall_fscore_support(y_test, y_pred)
-    plot_confusion_matrix(y_test, y_pred, "Test")
-    print("Per-class precision")
-    print(precision)
-    print("Per-class recall")
-    print(recall)
-    print("Mean precision")
-    print(np.mean(precision))
-    print("Mean recal")
-    print(np.mean(recall))
-    #test_and_evaluate(sift, y_true)
-
+    report_metrics(y_test, y_pred, "Test")
+    
 

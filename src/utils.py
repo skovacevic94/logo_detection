@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sn
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+from sklearn.model_selection import train_test_split
 from dataclasses import dataclass
-import random
 
 brand_to_index = {
     "adidas0": 0,
@@ -36,13 +36,23 @@ class BoundingBox:
     h: int
 
 
-def plot_confusion_matrix(y_true, y_pred, title):
+def report_metrics(y_true, y_pred, title):
     cmatrix = confusion_matrix(y_true, y_pred)
     df_cm = pd.DataFrame(cmatrix, range(10), range(10))
     sn.set(font_scale=1.4)
     sn.heatmap(df_cm, annot=True, annot_kws={"size": 16})
     plt.title(title)
     plt.show()
+
+    precision, recall, _, _ = precision_recall_fscore_support(y_true, y_pred)
+    print("Per-class precision")
+    print(precision)
+    print("Per-class recall")
+    print(recall)
+    print("Mean precision")
+    print(np.mean(precision))
+    print("Mean recal")
+    print(np.mean(recall))
 
 
 def load_logos(bbox_dir_path, dir_name, file_name):
@@ -55,41 +65,27 @@ def load_logos(bbox_dir_path, dir_name, file_name):
     return image_logos
 
 
-def load(dataset_root_path, dataset_filename):
+def load_data(dataset_root_path, test_size):
     bbox_dir_path = os.path.join(dataset_root_path, "masks")
     image_root_dir_path = os.path.join(dataset_root_path, "jpg")
 
-    video_set = set()
-    with open(os.path.join(dataset_root_path, "ImageSets", dataset_filename), 'r') as set_file:
-        for line in set_file:
-            video_set.add(line.strip())
-
     images = []
     logos = []
+    classes = []
     for dir_name in os.listdir(image_root_dir_path):
         dir_path = os.path.join(image_root_dir_path, dir_name)
         for file_name in os.listdir(dir_path):
             file_path = os.path.join(dir_path, file_name)
-            if os.path.splitext(file_name)[0] in video_set:
-                img = cv2.imread(file_path)
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                img = cv2.equalizeHist(img)
-                images.append(img)
+            img = cv2.imread(file_path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img = cv2.equalizeHist(img)
+            images.append(img)
 
-                image_logos = load_logos(bbox_dir_path, dir_name, file_name)
-                logos.append(image_logos)
-    
-    c = list(zip(images, logos))
-    random.seed(42)
-    random.shuffle(c)
-    images, logos = zip(*c)
-    return images, logos
+            image_logos = load_logos(bbox_dir_path, dir_name, file_name)
+            logos.append(image_logos)
+            classes.append(image_logos[0].logo_idx)
+    return train_test_split(images, logos, test_size=test_size, stratify=classes, random_state=42)
 
-def load_trainset(dataset_root_path):
-    return load(dataset_root_path, "40_images_per_class_train.txt")
-
-def load_testset(dataset_root_path):
-    return load(dataset_root_path, "30_images_per_class_test.txt")
 
 def compute_metrics(true_logos, detected_logos):
     assert(len(true_logos)==len(detected_logos))
@@ -117,7 +113,7 @@ if __name__=="__main__":
     from sklearn.cluster import KMeans
     from sklearn.preprocessing import StandardScaler
 
-    images, logos = load_trainset('./data')
+    images, _, logos, _ = load_data('./data')
 
     classes = []
     areas = []
