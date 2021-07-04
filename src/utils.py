@@ -6,6 +6,7 @@ import seaborn as sn
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from dataclasses import dataclass
+import random
 
 brand_to_index = {
     "adidas0": 0,
@@ -72,10 +73,16 @@ def load(dataset_root_path, dataset_filename):
             if os.path.splitext(file_name)[0] in video_set:
                 img = cv2.imread(file_path)
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                img = cv2.equalizeHist(img)
                 images.append(img)
 
                 image_logos = load_logos(bbox_dir_path, dir_name, file_name)
                 logos.append(image_logos)
+    
+    c = list(zip(images, logos))
+    random.seed(42)
+    random.shuffle(c)
+    images, logos = zip(*c)
     return images, logos
 
 def load_trainset(dataset_root_path):
@@ -83,7 +90,6 @@ def load_trainset(dataset_root_path):
 
 def load_testset(dataset_root_path):
     return load(dataset_root_path, "30_images_per_class_test.txt")
-
 
 def compute_metrics(true_logos, detected_logos):
     assert(len(true_logos)==len(detected_logos))

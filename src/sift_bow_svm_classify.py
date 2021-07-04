@@ -1,10 +1,10 @@
-from utils import load_trainset, load_testset, BoundingBox, compute_metrics, plot_confusion_matrix
+from utils import load_trainset, load_testset, plot_confusion_matrix, index_to_brand
 from tqdm import tqdm
 import cv2
 import numpy as np
 from scipy.cluster.vq import kmeans, vq
-from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import precision_recall_fscore_support
 
 def create_vocabulary(sift, images, k=130, logos=None):
@@ -36,7 +36,7 @@ def compute_features(sift, voc, images, logos):
             continue
         words,distance = vq(desc, voc)
         for w in words:
-            X[i,w] += 1
+            X[i,w] = 1
         y[i] = logos[i][0].logo_idx
     return X, y
 
@@ -45,14 +45,11 @@ if __name__=='__main__':
 
     train_images, train_logos = load_trainset('./data')
     
-    k = 130
+    k = 3000
     voc = create_vocabulary(sift, train_images, k, train_logos)
     X_train, y_train = compute_features(sift, voc, train_images, train_logos)
     
-    scaler = StandardScaler().fit(X_train)
-    X_train = scaler.transform(X_train)
-
-    clf = LinearSVC(C=0.5)
+    clf = LinearSVC(C=0.01)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_train)
 
@@ -72,7 +69,6 @@ if __name__=='__main__':
 
     X_test, y_test = compute_features(sift, voc, test_images, test_logos)
 
-    X_test = scaler.transform(X_test)
     y_pred = clf.predict(X_test)
 
     precision, recall, _, _ = precision_recall_fscore_support(y_test, y_pred)
