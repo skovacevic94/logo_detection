@@ -38,7 +38,7 @@ class BoundingBox:
 
 def report_metrics(y_true, y_pred, title):
     cmatrix = confusion_matrix(y_true, y_pred)
-    df_cm = pd.DataFrame(cmatrix, range(10), range(10))
+    df_cm = pd.DataFrame(cmatrix, range(11), range(11))
     sn.set(font_scale=1.4)
     sn.heatmap(df_cm, annot=True, annot_kws={"size": 16})
     plt.title(title)
@@ -51,7 +51,7 @@ def report_metrics(y_true, y_pred, title):
     print(recall)
     print("Mean precision")
     print(np.mean(precision))
-    print("Mean recal")
+    print("Mean recall")
     print(np.mean(recall))
 
 
@@ -86,6 +86,50 @@ def load_data(dataset_root_path, test_size):
             classes.append(image_logos[0].logo_idx)
     return train_test_split(images, logos, test_size=test_size, stratify=classes, random_state=42)
 
+
+def rect_overlap(bbox1, bbox2):
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(bbox1.x, bbox2.x)
+    yA = max(bbox1.y, bbox2.y)
+    xB = min(bbox1.x+bbox1.w, bbox2.x+bbox2.w)
+    yB = min(bbox1.y+bbox1.h, bbox2.y+bbox2.h)
+
+    # compute the area of intersection rectangle
+    interArea = abs(max((xB - xA, 0)) * max((yB - yA), 0))
+    if interArea == 0:
+        return False
+    return True
+
+
+def transform_to_classification_dataset(images, logos, include_negatives = True):
+    labels = []
+    data = []
+    for i, img in enumerate(images):
+        bbox = logos[i][0]
+        img_h, img_w = img.shape
+        # Get positive example
+        pos_img = img[bbox.y:bbox.y+bbox.h, bbox.x:bbox.x+bbox.w]
+        data.append(pos_img)
+        labels.append(logos[i][0].logo_idx)
+        # Generate negative example
+        for i in range(10): # Try 10 times
+            w, h = bbox.w, bbox.h
+
+            x = np.random.randint(0, img_w - w)
+            y = np.random.randint(0, img_h - h)
+
+            candidate_bbox = BoundingBox(bbox.logo_idx, x, y, w, h)
+            valid = True
+            for positive_bbox in logos[i]:
+                if rect_overlap(candidate_bbox, positive_bbox):
+                    valid = False
+                    break
+            if valid:
+                neg_img = img[y:y+h, x:x+w]
+                data.append(neg_img)
+                labels.append(10) # None-detected class 
+                break
+    return data, labels
 
 def compute_metrics(true_logos, detected_logos):
     assert(len(true_logos)==len(detected_logos))
