@@ -38,7 +38,8 @@ class BoundingBox:
 
 def report_metrics(y_true, y_pred, title):
     cmatrix = confusion_matrix(y_true, y_pred)
-    df_cm = pd.DataFrame(cmatrix, range(11), range(11))
+    n_classes = np.max(y_true) + 1
+    df_cm = pd.DataFrame(cmatrix, range(n_classes), range(n_classes))
     sn.set(font_scale=1.4)
     sn.heatmap(df_cm, annot=True, annot_kws={"size": 16})
     plt.title(title)
@@ -130,7 +131,8 @@ def transform_to_classification_dataset(images, logos, include_negatives = True)
                 data.append(neg_img)
                 labels.append(10) # None-detected class 
                 break
-    return data, labels
+    return data, np.array(labels)
+
 
 def compute_metrics(true_logos, detected_logos):
     assert(len(true_logos)==len(detected_logos))
