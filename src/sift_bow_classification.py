@@ -40,8 +40,7 @@ if __name__=='__main__':
     recompute_vocabulary = False
 
     sift = cv2.SIFT_create()
-    clf = RandomForestClassifier(n_estimators=1500, max_features=10)
-    #clf = LinearSVC(C=0.01)
+    clf = RandomForestClassifier(n_estimators=1500, max_features=20, class_weight='balanced')
 
     train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
     train_images, y_train = transform_to_classification_dataset(train_images, train_logos)

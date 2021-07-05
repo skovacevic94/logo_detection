@@ -77,8 +77,9 @@ def load_data(dataset_root_path, test_size):
         for file_name in os.listdir(dir_path):
             file_path = os.path.join(dir_path, file_name)
             img = cv2.imread(file_path)
+            
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            img = cv2.equalizeHist(img)
+
             images.append(img)
 
             image_logos = load_logos(bbox_dir_path, dir_name, file_name)
