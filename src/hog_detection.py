@@ -1,11 +1,31 @@
 from features import compute_hog_features
-from utils import get_window_sizes, load_data, transform_to_classification_dataset, report_metrics
+from utils import BoundingBox, get_window_sizes, load_data, transform_to_classification_dataset, report_metrics
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 import cv2
 from numpy.lib.stride_tricks import sliding_window_view
 from tqdm import tqdm
+import logging
+import os
+import pickle as pkl
+
+def iou(bbox1, bbox2):
+    xA = max(bbox1.x, bbox2.x)
+    yA = max(bbox1.y, bbox2.y)
+    xB = min(bbox1.x+bbox1.w, bbox2.x+bbox2.w)
+    yB = min(bbox1.y+bbox1.h, bbox2.y+bbox2.h)
+
+    interArea = abs(max((xB - xA), 0) * max((yB - yA), 0))
+    if interArea == 0:
+        return 0
+
+    boxAArea = bbox1.w*bbox1.h
+    boxBArea = bbox2.w*bbox2.h
+
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+
+    return iou
 
 
 if __name__=='__main__':
@@ -23,6 +43,7 @@ if __name__=='__main__':
     train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
     train_images_clf, y_train = transform_to_classification_dataset(train_images, train_logos)
     test_images_clf, y_test = transform_to_classification_dataset(test_images, test_logos)
+    
     
     print("Training stage...")
     X_train = compute_hog_features(train_images_clf)
@@ -48,19 +69,24 @@ if __name__=='__main__':
     report_metrics(s_test, s_pred, "Logo/No-Logo results on testset")
 
     print("Performing sliding window detection")
-    progress_bar = tqdm(total=len(test_images))
-    for i, image in enumerate(test_images):
-        for logo in test_logos[i]:
-            window_size = (logo.h+8, logo.w+8)
-            windows = sliding_window_view(image, window_size)[::8, ::8, :, :]
-            windows = np.reshape(windows, (windows.shape[0]*windows.shape[1], windows.shape[2], windows.shape[3]))
-            for window in windows:
-                H = compute_hog_features([window])
-                pred = clf.predict(H)
-                if pred != 10:
-                    cv2.imshow("A", window)
-                    cv2.waitKey(0)
-        progress_bar.update()
+    stride = 5
+    for i, image in enumerate(tqdm(test_images)):
+        img_h, img_w = image.shape
+        logo = test_logos[i][0]
+        window_size = (logo.h, logo.w)
+        windows = sliding_window_view(image, window_size)[::stride, ::stride, :, :]
+        xs = np.arange(img_w-window_size[1]+1, step=stride)
+        ys = np.arange(img_h-window_size[0]+1, step=stride)
+        xv, yv = np.meshgrid(xs, ys)
+        xv = np.reshape(xv, -1)
+        yv = np.reshape(yv, -1)
+        assert(len(xs)==windows.shape[1])
+        assert(len(ys)==windows.shape[0])
+        windows = np.reshape(windows, (windows.shape[0]*windows.shape[1], windows.shape[2], windows.shape[3]))
+        detected = False
+        X = compute_hog_features(windows)
+        pred = clf.predict(X)
+        print(f"Detected {len(pred[pred != 10])} Exists {len(test_logos[i])}")
 
 
     
