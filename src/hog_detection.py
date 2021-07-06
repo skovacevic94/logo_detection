@@ -48,16 +48,19 @@ if __name__=='__main__':
     report_metrics(s_test, s_pred, "Logo/No-Logo results on testset")
 
     print("Performing sliding window detection")
-    window_sizes = get_window_sizes(train_logos, 5)
-    progress_bar = tqdm(total=len(window_sizes)*len(test_images))
-    for window_size in window_sizes:
-        for image in test_images:
-            stride = (int(window_size[0]//3), int(window_size[1]//3))
-            windows = sliding_window_view(image, window_size)
+    progress_bar = tqdm(total=len(test_images))
+    for i, image in enumerate(test_images):
+        for logo in test_logos[i]:
+            window_size = (logo.h+8, logo.w+8)
+            windows = sliding_window_view(image, window_size)[::8, ::8, :, :]
             windows = np.reshape(windows, (windows.shape[0]*windows.shape[1], windows.shape[2], windows.shape[3]))
-            H = compute_hog_features(windows)
-            pred = clf.predict(H)
-            progress_bar.update()
+            for window in windows:
+                H = compute_hog_features([window])
+                pred = clf.predict(H)
+                if pred != 10:
+                    cv2.imshow("A", window)
+                    cv2.waitKey(0)
+        progress_bar.update()
 
 
     

@@ -186,6 +186,7 @@ def get_window_sizes(logos, k):
     plt.title("Windowing clusters")
     plt.show()
 
-    return centroids.astype(np.int)
+    return [(256, 256)]
+    #return centroids.astype(np.int)
 
     
