@@ -2,6 +2,7 @@ from utils import load_data, transform_to_classification_dataset, report_metrics
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
+from sklearn.ensemble import RandomForestClassifier
 from features import compute_hog_features
 
 
@@ -10,7 +11,8 @@ if __name__=='__main__':
 
     clf1 = LinearSVC(C=0.0005)
     clf2 = LinearSVC(C=0.0005)
-    
+    #clf1 = RandomForestClassifier(n_estimators=1000)
+
     train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
     train_images, y_train = transform_to_classification_dataset(train_images, train_logos)
     test_images, y_test = transform_to_classification_dataset(test_images, test_logos)

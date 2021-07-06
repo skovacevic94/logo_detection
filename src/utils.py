@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 from dataclasses import dataclass
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 brand_to_index = {
     "adidas0": 0,
@@ -155,38 +157,35 @@ def compute_metrics(true_logos, detected_logos):
     return confussion_matrix, precission, recall, accuracy
 
 
-if __name__=="__main__":
-    import matplotlib.pyplot as plt
-    from sklearn.cluster import KMeans
-    from sklearn.preprocessing import StandardScaler
-
-    images, _, logos, _ = load_data('./data')
-
+def get_window_sizes(logos, k):
     classes = []
-    areas = []
-    aspectRatios = []
+    widths = []
+    heights = []
     for logo_bboxes in logos:
         for logo_bbox in logo_bboxes:
-            id = logo_bbox.logo_id
-            w = logo_bbox.w
-            h = logo_bbox.h
-            areas.append(w*h)
-            aspectRatios.append(h/w)
+            id = logo_bbox.logo_idx
+            widths.append(logo_bbox.w)
+            heights.append(logo_bbox.h)
             classes.append(id)
-    X = np.zeros((len(areas), 2))
-    X[:, 0] = np.array(areas)
-    X[:, 1] = np.array(aspectRatios)
+    X = np.zeros((len(widths), 2))
+    X[:, 0] = np.array(widths)
+    X[:, 1] = np.array(heights)
 
     scaler = StandardScaler()
+    X = scaler.fit_transform(X)
 
-    X_transformed = scaler.fit_transform(X)
-    
-    clf = KMeans(n_clusters=6).fit(X_transformed)
-    scaled_centroids = clf.cluster_centers_
-    unscaled_centroids = scaler.inverse_transform(scaled_centroids)
+    clf = KMeans(n_clusters=5).fit(X)
+    centroids = clf.cluster_centers_
+
+    centroids = scaler.inverse_transform(centroids)
+    X = scaler.inverse_transform(X)
     
     plt.scatter(X[:, 0], X[:, 1])
-    plt.scatter(unscaled_centroids[:, 0], unscaled_centroids[:, 1], s=80)
+    plt.scatter(centroids[:, 0], centroids[:, 1], s=80)
     plt.legend()
+    plt.title("Windowing clusters")
     plt.show()
-    print(unscaled_centroids)
+
+    return centroids.astype(np.int)
+
+    
