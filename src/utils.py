@@ -39,8 +39,8 @@ class BoundingBox:
 
 
 def report_metrics(y_true, y_pred, title):
-    cmatrix = confusion_matrix(y_true, y_pred)
     n_classes = np.max(y_true) + 1
+    cmatrix = confusion_matrix(y_true, y_pred, labels=range(n_classes))
     df_cm = pd.DataFrame(cmatrix, range(n_classes), range(n_classes))
     sn.set(font_scale=1.4)
     sn.heatmap(df_cm, annot=True, annot_kws={"size": 16})
@@ -111,12 +111,20 @@ def transform_to_classification_dataset(images, logos, include_negatives = True)
     for i, img in enumerate(images):
         bbox = logos[i][0]
         img_h, img_w = img.shape
-        # Get positive example
-        pos_img = img[bbox.y:bbox.y+bbox.h, bbox.x:bbox.x+bbox.w]
-        data.append(pos_img)
-        labels.append(logos[i][0].logo_idx)
+        xof = 5
+        yof = 5
+        for _ in range(2):
+            x = bbox.x+np.random.randint(-xof, xof)
+            y = bbox.y+np.random.randint(-yof, yof)
+            x = max(x, 0)
+            y = max(y, 0)
+            w = bbox.w
+            h = bbox.h
+            pos_img = img[y:y+h, x:x+w]
+            data.append(pos_img)
+            labels.append(logos[i][0].logo_idx)
         # Generate negative example
-        for i in range(10): # Try 10 times
+        for _ in range(2): # Try 10 times
             w, h = bbox.w, bbox.h
 
             x = np.random.randint(0, img_w - w)
@@ -131,8 +139,7 @@ def transform_to_classification_dataset(images, logos, include_negatives = True)
             if valid:
                 neg_img = img[y:y+h, x:x+w]
                 data.append(neg_img)
-                labels.append(10) # None-detected class 
-                break
+                labels.append(10) # None-detected class
     return data, np.array(labels)
 
 
@@ -188,5 +195,7 @@ def get_window_sizes(logos, k):
 
     return [(256, 256)]
     #return centroids.astype(np.int)
-
     
+if __name__=='__main__':
+    train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
+    get_window_sizes(train_logos, 10)

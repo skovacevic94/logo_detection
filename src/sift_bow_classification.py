@@ -2,7 +2,7 @@ from utils import load_data, transform_to_classification_dataset, report_metrics
 import cv2
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import LinearSVC
 import pickle as pkl
 import os
 from features import create_vocabulary, compute_sift_bow_features
@@ -15,7 +15,7 @@ if __name__=='__main__':
     train_images, y_train = transform_to_classification_dataset(train_images, train_logos)
     test_images, y_test = transform_to_classification_dataset(test_images, test_logos)
     
-    clf = RandomForestClassifier(n_estimators=1500, max_features=20, class_weight='balanced')
+    clf = LinearSVC(C=0.0005)
 
     k = 3000
     voc_filename = f"voc_k{k}.pkl"

@@ -2,6 +2,7 @@ from tqdm import tqdm
 import numpy as np
 import cv2
 from scipy.cluster.vq import kmeans, vq
+from skimage.feature import hog
 
 
 def create_vocabulary(images, k=130):
@@ -71,8 +72,8 @@ def compute_hog_features(images):
     dim = 64
 
     winSize = (64,64)
-    blockSize = (16,16)
-    blockStride = (8,8)
+    blockSize = (2,2)
+    blockStride = (1,1)
     cellSize = (8,8)
     nbins = 9
     derivAperture = 1
@@ -85,6 +86,8 @@ def compute_hog_features(images):
         histogramNormType,L2HysThreshold,gammaCorrection,nlevels)
     for i, img in enumerate(images):
         img = prepare_size(img, dim, keep_ratio=False, inter=cv2.INTER_LINEAR)
-        H = hogcv.compute(img)
-        features[i] = H.T
+        #H = hogcv.compute(img)
+        #features[i] = H.T
+        H = hog(img, orientations=9, pixels_per_cell=(8, 8), cells_per_block=(2, 2), transform_sqrt=True, block_norm="L1")
+        features[i] = H
     return features

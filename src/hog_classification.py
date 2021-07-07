@@ -1,4 +1,3 @@
-from numpy.lib.type_check import imag
 from features import compute_hog_features
 from utils import load_data, transform_to_classification_dataset, report_metrics
 import numpy as np
@@ -6,16 +5,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 import cv2
 
-def sliding_window(image, stepSize, windowSize):
-    for y in range(0, image.shape[0], stepSize):
-        for x in range(0, image.shape[1], stepSize):
-            yield (x, y, image[y:y + windowSize[1], x:x + windowSize[0]])
 
 if __name__=='__main__':
     np.random.seed(42)
     recompute_vocabulary = False
 
-    clf = LinearSVC(C=0.001)
+    clf = LinearSVC(C=0.0005, class_weight="balanced")
 
     train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
     train_images_clf, y_train = transform_to_classification_dataset(train_images, train_logos)
