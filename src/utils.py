@@ -147,8 +147,8 @@ def transform_to_classification_dataset(images, logos, stride):
     for i, img in enumerate(images):
         bbox = logos[i][0]
         img_h, img_w = img.shape
-        w = bbox.w + 2*stride
-        h = bbox.h + 2*stride
+        w = bbox.w+stride
+        h = bbox.h+stride
         if w > img_w or h > img_h:
             continue
 
@@ -191,7 +191,7 @@ def transform_to_classification_dataset(images, logos, stride):
             #cv2.resizeWindow("POS IMG", 600, 600)
             #cv2.waitKey(0)
         # Generate negative example
-        for _ in range(3):
+        for _ in range(5):
             for _ in range(20): # Try random 20 times
                 x = np.random.randint(0, img_w - w)
                 y = np.random.randint(0, img_h - h)

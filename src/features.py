@@ -67,6 +67,25 @@ def prepare_size(image, dim, keep_ratio=True, inter = cv2.INTER_AREA):
     return res
 
 
+def compute_hybrid_features(images, voc):
+    sift = cv2.SIFT_create()
+    features = np.zeros((len(images), len(voc)+1764))
+
+    for i, image in enumerate(images):
+        _, desc = sift.detectAndCompute(image, None)
+        if desc is None:
+            continue
+        words,distance = vq(desc, voc)
+        for w in words:
+            features[i,w] += 1
+
+        dim = 64
+        img = prepare_size(image, dim, keep_ratio=False, inter=cv2.INTER_LINEAR)
+        H = hog(img, orientations=9, pixels_per_cell=(8, 8), cells_per_block=(2, 2), transform_sqrt=True, block_norm="L1")
+        features[i, len(voc):] = H
+    return features
+
+
 def compute_hog_features(images, scale_factor=None):
     features = []
     dim = 64

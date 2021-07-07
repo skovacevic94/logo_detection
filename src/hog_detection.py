@@ -1,8 +1,9 @@
-from features import compute_hog_features, create_vocabulary, compute_sift_bow_features
-from utils import BoundingBox, load_data, transform_to_classification_dataset, report_metrics, index_to_brand, get_window_sizes
+from features import compute_hybrid_features, create_vocabulary
+from utils import BoundingBox, io2, load_data, transform_to_classification_dataset, report_metrics, index_to_brand, get_window_sizes
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
+from sklearn.ensemble import RandomForestClassifier
 import cv2
 from numpy.lib.stride_tricks import sliding_window_view
 from tqdm import tqdm
@@ -38,8 +39,8 @@ if __name__=='__main__':
         " using: ",
         cv2.ocl.useOpenCL())
 
-    stride = 20
-    clf = LinearSVC(C=0.0001)
+    stride = 40
+    clf = RandomForestClassifier(n_estimators=1500, max_features=10, max_depth=10, min_samples_leaf=4, n_jobs=10)
 
 
     train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
@@ -56,12 +57,26 @@ if __name__=='__main__':
             pkl.dump(voc, voc_file)
 
     
+    false_positives = []
+    filename = "false_positives.pkl"
+    if os.path.exists(filename):
+        with open(filename, "rb") as pkl_file:
+            false_positives = pkl.load(pkl_file)
+            
     print("Training stage...")
     train_images_clf, y_train = transform_to_classification_dataset(train_images, train_logos, stride)
-    y_train_det = np.ones(len(y_train), np.uint8)
-    y_train_det[y_train==10] = 0
+    y_train_det = np.empty(len(y_train)+len(false_positives), np.uint8)
+    for i in range(len(y_train)):
+        if y_train[i] == 10:
+            y_train_det[i] = 0
+        else:
+            y_train_det[i] = 1
+    for i in range(len(false_positives)):
+        y_train_det[len(y_train)+i] = 0
 
-    X_train = np.hstack((compute_hog_features(train_images_clf), compute_sift_bow_features(train_images_clf, voc)))
+    X_train = compute_hybrid_features(train_images_clf, voc)
+    if len(false_positives) > 0:
+        X_train = np.vstack((X_train, np.vstack(false_positives)))
     scaler = StandardScaler().fit(X_train)
     X_train = scaler.transform(X_train)
     
@@ -73,15 +88,16 @@ if __name__=='__main__':
     test_images_clf, y_test = transform_to_classification_dataset(test_images, test_logos, stride)
     y_test_det = np.ones(len(y_test), np.uint8)
     y_test_det[y_test==10] = 0
-    X_test = np.hstack((compute_hog_features(test_images_clf), compute_sift_bow_features(test_images_clf, voc)))
+    X_test = compute_hybrid_features(test_images_clf, voc)
     X_test = scaler.transform(X_test)
     y_pred = clf.predict(X_test)
     report_metrics(y_test_det, y_pred, "Test")
 
     print("Performing sliding window detection")
-    for i, image in enumerate(tqdm(train_images[:3])):
+    false_positives = []
+    for i, image in enumerate(tqdm(train_images[100:200])):
         img_h, img_w = image.shape
-        logo = train_logos[i][0]
+        logo = train_logos[i+100][0]
         window_size = (logo.h, logo.w)
         windows = sliding_window_view(image, window_size)[::stride, ::stride, :, :]
         xs = np.arange(img_w-window_size[1]+1, step=stride)
@@ -92,19 +108,31 @@ if __name__=='__main__':
         assert(len(xs)==windows.shape[1])
         assert(len(ys)==windows.shape[0])
         windows = np.reshape(windows, (windows.shape[0]*windows.shape[1], windows.shape[2], windows.shape[3]))
-        detected = False
-        X = np.hstack((compute_hog_features(windows), compute_sift_bow_features(windows, voc)))
+        
+        true_bboxes_idx = []
+        X = np.empty((len(windows), 1764+len(voc)))
+        for i, window in enumerate(windows):
+            if iou(BoundingBox(-1, xv[i], yv[i], window_size[1], window_size[0]), logo) > 0.7:
+                true_bboxes_idx.append(i)
+            X[i] = compute_hybrid_features([window], voc)
         X = scaler.transform(X)
         pred = clf.predict(X)
-        distances = clf.decision_function(X)
         detected_idx = np.reshape(np.argwhere(pred == 1), -1)
-        top_dist_incices = np.argsort(np.reshape(distances[detected_idx], -1))[:20]
+
         rec_img = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         for idx in detected_idx:
-            cv2.rectangle(rec_img, (xv[idx], yv[idx]), (xv[idx]+window_size[1], yv[idx]+window_size[0]), (0, 255, 0))
+            if iou(BoundingBox(-1, xv[idx], yv[idx], window_size[1], window_size[0]), logo) < 0.3:
+                false_positives.append(X[idx])
+                cv2.rectangle(rec_img, (xv[idx], yv[idx]), (xv[idx]+window_size[1], yv[idx]+window_size[0]), (0, 0, 255))
+            else:
+                cv2.rectangle(rec_img, (xv[idx], yv[idx]), (xv[idx]+window_size[1], yv[idx]+window_size[0]), (0, 255, 0), thickness=2)
+        for idx in true_bboxes_idx:
+            if idx not in detected_idx:
+                cv2.rectangle(rec_img, (xv[idx], yv[idx]), (xv[idx]+window_size[1], yv[idx]+window_size[0]), (255, 0, 0), thickness=1)
         cv2.imshow("RESULt", rec_img)
         cv2.waitKey(0)
-        print(f"Detected {len(pred[pred != 10])} Exists {len(test_logos[i])}")
+    with open("false_positives2.pkl", "wb") as pkl_file:
+        pkl.dump(false_positives, pkl_file)
 
 
     
