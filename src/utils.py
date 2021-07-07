@@ -105,41 +105,106 @@ def rect_overlap(bbox1, bbox2):
     return True
 
 
-def transform_to_classification_dataset(images, logos, include_negatives = True, stride=5):
+def iou(bbox1, bbox2):
+    xA = max(bbox1.x, bbox2.x)
+    yA = max(bbox1.y, bbox2.y)
+    xB = min(bbox1.x+bbox1.w, bbox2.x+bbox2.w)
+    yB = min(bbox1.y+bbox1.h, bbox2.y+bbox2.h)
+
+    interArea = abs(max((xB - xA), 0) * max((yB - yA), 0))
+    if interArea == 0:
+        return 0
+
+    boxAArea = bbox1.w*bbox1.h
+    boxBArea = bbox2.w*bbox2.h
+
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+
+    return iou
+
+
+def io2(bbox1, bbox2):
+    xA = max(bbox1.x, bbox2.x)
+    yA = max(bbox1.y, bbox2.y)
+    xB = min(bbox1.x+bbox1.w, bbox2.x+bbox2.w)
+    yB = min(bbox1.y+bbox1.h, bbox2.y+bbox2.h)
+
+    interArea = abs(max((xB - xA), 0) * max((yB - yA), 0))
+    if interArea == 0:
+        return 0
+
+    boxAArea = bbox1.w*bbox1.h
+    boxBArea = bbox2.w*bbox2.h
+
+    iou = interArea / float(boxBArea)
+
+    return iou
+
+
+def transform_to_classification_dataset(images, logos, stride):
     labels = []
     data = []
     for i, img in enumerate(images):
         bbox = logos[i][0]
         img_h, img_w = img.shape
-        for _ in range(2):
-            x = bbox.x-stride+np.random.randint(-stride, stride)
-            y = bbox.y-stride+np.random.randint(-stride, stride)
-            w = bbox.w+2*stride
-            h = bbox.h+2*stride
+        w = bbox.w + 2*stride
+        h = bbox.h + 2*stride
+        if w > img_w or h > img_h:
+            continue
+        for _ in range(5):
+            true_mid_x = bbox.x + (bbox.w // 2)
+            true_mid_y = bbox.y + (bbox.h // 2)
 
-            x = max(x, 0)
-            y = max(y, 0)
+            # Initial proposal
+            x = true_mid_x - (w // 2)
+            y = true_mid_y - (h // 2)
+
+            # Fix if out of bounds
+            if x + w > img_w:
+                x -= (x+w-img_w)
+            if y + h > img_h:
+                y -= (y+h-img_h)
+
+            # Possible x+ perturbation amount
+            x_pos_pert = min(img_w-(x+w), abs(bbox.x - x))
+            # Possible x- perturbation amount
+            x_neg_pert = min(x, abs((x+w)-(bbox.x+bbox.w)))
+            # Possible y+ perturbation amount
+            y_pos_pert = min(img_h-(y+h), abs(bbox.y - y))
+            # Possible y- perturbation amount
+            y_neg_pert = min(y, abs((y+h)-(bbox.y+bbox.h)))
+
+            if x_pos_pert > 0 and x_neg_pert:
+                x = x+np.random.randint(-x_neg_pert, x_pos_pert)
+            if y_pos_pert > 0 and y_neg_pert:
+                y = y+np.random.randint(-y_neg_pert, y_pos_pert)
 
             pos_img = img[y:y+h, x:x+w]
             data.append(pos_img)
             labels.append(logos[i][0].logo_idx)
+            #cv2.imshow("POS IMG", pos_img)
+            #cv2.resizeWindow("POS IMG", 600, 600)
+            #cv2.waitKey(0)
         # Generate negative example
-        for _ in range(7): # Try 10 times
-            w, h = bbox.w, bbox.h
+        for _ in range(50):
+            for _ in range(5): # Try random 5 times
+                x = np.random.randint(0, img_w - w)
+                y = np.random.randint(0, img_h - h)
 
-            x = np.random.randint(0, img_w - w)
-            y = np.random.randint(0, img_h - h)
-
-            candidate_bbox = BoundingBox(bbox.logo_idx, x, y, w, h)
-            valid = True
-            for positive_bbox in logos[i]:
-                if rect_overlap(candidate_bbox, positive_bbox):
-                    valid = False
+                candidate_bbox = BoundingBox(bbox.logo_idx, x, y, w, h)
+                valid = True
+                for positive_bbox in logos[i]:
+                    if io2(candidate_bbox, positive_bbox) > 0.3:
+                        valid = False
+                        break
+                if valid:
+                    neg_img = img[y:y+h, x:x+w]
+                    data.append(neg_img)
+                    #cv2.imshow("NEG IMG", neg_img)
+                    #cv2.resizeWindow("NEG IMG", 600, 600)
+                    #cv2.waitKey(0)
+                    labels.append(10) # None-detected class
                     break
-            if valid:
-                neg_img = img[y:y+h, x:x+w]
-                data.append(neg_img)
-                labels.append(10) # None-detected class
     return data, np.array(labels)
 
 
@@ -193,8 +258,7 @@ def get_window_sizes(logos, k):
     plt.title("Windowing clusters")
     plt.show()
 
-    return [(256, 256)]
-    #return centroids.astype(np.int)
+    return centroids.astype(np.int)
     
 if __name__=='__main__':
     train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
