@@ -105,26 +105,26 @@ def rect_overlap(bbox1, bbox2):
     return True
 
 
-def transform_to_classification_dataset(images, logos, include_negatives = True):
+def transform_to_classification_dataset(images, logos, include_negatives = True, stride=5):
     labels = []
     data = []
     for i, img in enumerate(images):
         bbox = logos[i][0]
         img_h, img_w = img.shape
-        xof = 5
-        yof = 5
         for _ in range(2):
-            x = bbox.x+np.random.randint(-xof, xof)
-            y = bbox.y+np.random.randint(-yof, yof)
+            x = bbox.x-stride+np.random.randint(-stride, stride)
+            y = bbox.y-stride+np.random.randint(-stride, stride)
+            w = bbox.w+2*stride
+            h = bbox.h+2*stride
+
             x = max(x, 0)
             y = max(y, 0)
-            w = bbox.w
-            h = bbox.h
+
             pos_img = img[y:y+h, x:x+w]
             data.append(pos_img)
             labels.append(logos[i][0].logo_idx)
         # Generate negative example
-        for _ in range(2): # Try 10 times
+        for _ in range(7): # Try 10 times
             w, h = bbox.w, bbox.h
 
             x = np.random.randint(0, img_w - w)

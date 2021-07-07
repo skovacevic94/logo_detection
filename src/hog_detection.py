@@ -40,9 +40,7 @@ if __name__=='__main__':
         " using: ",
         cv2.ocl.useOpenCL())
     
-    #clf = LinearSVC(C=0.0005)
-    #clf = MLPClassifier(verbose=1)
-    clf = RandomForestClassifier(verbose=1, max_features=10, n_estimators=2000, n_jobs=10)
+    clf = LinearSVC(C=0.0005)
 
     train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
     train_images_clf, y_train = transform_to_classification_dataset(train_images, train_logos)
