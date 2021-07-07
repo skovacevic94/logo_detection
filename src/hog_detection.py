@@ -1,13 +1,13 @@
-from features import compute_hog_features
+from features import compute_hog_features, create_vocabulary, compute_sift_bow_features
 from utils import BoundingBox, load_data, transform_to_classification_dataset, report_metrics, index_to_brand, get_window_sizes
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.neural_network import MLPClassifier
 import cv2
 from numpy.lib.stride_tricks import sliding_window_view
 from tqdm import tqdm
+import pickle as pkl
+import os
 
 
 def iou(bbox1, bbox2):
@@ -38,17 +38,30 @@ if __name__=='__main__':
         " using: ",
         cv2.ocl.useOpenCL())
 
-    stride = 5
+    stride = 20
     clf = LinearSVC(C=0.0001)
 
+
     train_images, test_images, train_logos, test_logos = load_data('./data', test_size=0.33)
+
+    k = 800
+    voc_filename = f"voc_k{k}.pkl"
+    if os.path.exists(voc_filename):
+        print("Using cached vocabulary!")
+        with open(voc_filename, "rb") as voc_file:
+            voc = pkl.load(voc_file)
+    else:
+        voc = create_vocabulary(train_images, k)
+        with open(voc_filename, "wb") as voc_file:
+            pkl.dump(voc, voc_file)
+
     
     print("Training stage...")
     train_images_clf, y_train = transform_to_classification_dataset(train_images, train_logos, stride)
     y_train_det = np.ones(len(y_train), np.uint8)
     y_train_det[y_train==10] = 0
 
-    X_train = compute_hog_features(train_images_clf)
+    X_train = np.hstack((compute_hog_features(train_images_clf), compute_sift_bow_features(train_images_clf, voc)))
     scaler = StandardScaler().fit(X_train)
     X_train = scaler.transform(X_train)
     
@@ -60,15 +73,15 @@ if __name__=='__main__':
     test_images_clf, y_test = transform_to_classification_dataset(test_images, test_logos, stride)
     y_test_det = np.ones(len(y_test), np.uint8)
     y_test_det[y_test==10] = 0
-    X_test = compute_hog_features(test_images_clf)
+    X_test = np.hstack((compute_hog_features(test_images_clf), compute_sift_bow_features(test_images_clf, voc)))
     X_test = scaler.transform(X_test)
     y_pred = clf.predict(X_test)
     report_metrics(y_test_det, y_pred, "Test")
 
     print("Performing sliding window detection")
-    for i, image in enumerate(tqdm(test_images[:3])):
+    for i, image in enumerate(tqdm(train_images[:3])):
         img_h, img_w = image.shape
-        logo = test_logos[i][0]
+        logo = train_logos[i][0]
         window_size = (logo.h, logo.w)
         windows = sliding_window_view(image, window_size)[::stride, ::stride, :, :]
         xs = np.arange(img_w-window_size[1]+1, step=stride)
@@ -80,7 +93,7 @@ if __name__=='__main__':
         assert(len(ys)==windows.shape[0])
         windows = np.reshape(windows, (windows.shape[0]*windows.shape[1], windows.shape[2], windows.shape[3]))
         detected = False
-        X = compute_hog_features(windows)
+        X = np.hstack((compute_hog_features(windows), compute_sift_bow_features(windows, voc)))
         X = scaler.transform(X)
         pred = clf.predict(X)
         distances = clf.decision_function(X)

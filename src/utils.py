@@ -151,7 +151,11 @@ def transform_to_classification_dataset(images, logos, stride):
         h = bbox.h + 2*stride
         if w > img_w or h > img_h:
             continue
-        for _ in range(5):
+
+        image_data = []
+        image_labels = []
+        image_bboxes = []
+        for _ in range(3):
             true_mid_x = bbox.x + (bbox.w // 2)
             true_mid_y = bbox.y + (bbox.h // 2)
 
@@ -180,31 +184,35 @@ def transform_to_classification_dataset(images, logos, stride):
                 y = y+np.random.randint(-y_neg_pert, y_pos_pert)
 
             pos_img = img[y:y+h, x:x+w]
-            data.append(pos_img)
-            labels.append(logos[i][0].logo_idx)
+            image_data.append(pos_img)
+            image_labels.append(logos[i][0].logo_idx)
+            image_bboxes.append(BoundingBox(logos[i][0].logo_idx, x, y, w, h))
             #cv2.imshow("POS IMG", pos_img)
             #cv2.resizeWindow("POS IMG", 600, 600)
             #cv2.waitKey(0)
         # Generate negative example
-        for _ in range(50):
-            for _ in range(5): # Try random 5 times
+        for _ in range(3):
+            for _ in range(20): # Try random 20 times
                 x = np.random.randint(0, img_w - w)
                 y = np.random.randint(0, img_h - h)
 
                 candidate_bbox = BoundingBox(bbox.logo_idx, x, y, w, h)
                 valid = True
-                for positive_bbox in logos[i]:
-                    if io2(candidate_bbox, positive_bbox) > 0.3:
+                for positive_bbox in image_bboxes:
+                    if io2(candidate_bbox, positive_bbox) > 0.2:
                         valid = False
                         break
                 if valid:
                     neg_img = img[y:y+h, x:x+w]
-                    data.append(neg_img)
+                    image_data.append(neg_img)
                     #cv2.imshow("NEG IMG", neg_img)
                     #cv2.resizeWindow("NEG IMG", 600, 600)
                     #cv2.waitKey(0)
-                    labels.append(10) # None-detected class
+                    image_labels.append(10) # None-detected class
+                    image_bboxes.append(candidate_bbox)
                     break
+        data = data + image_data
+        labels = labels + image_labels
     return data, np.array(labels)
 
 
